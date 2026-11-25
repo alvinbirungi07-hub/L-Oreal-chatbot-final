@@ -123,7 +123,8 @@ export function App() {
     setChatError(null);
 
     try {
-      const response = await fetch('/api/chat', {
+      const endpoint = import.meta.env.VITE_CLOUDFLARE_WORKER_URL?.trim() || '/api/chat';
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -145,11 +146,21 @@ export function App() {
         }),
       });
 
-      const data = (await response.json()) as {
+      const rawText = await response.text();
+      let data: {
         reply?: string;
         sources?: GroundingSource[];
         error?: string;
-      };
+      } = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        throw new Error(
+          response.status === 404 || response.status === 405
+            ? 'Static hosting does not include the /api/chat server. Configure your Cloudflare Worker URL (VITE_CLOUDFLARE_WORKER_URL) when building for GitHub Pages.'
+            : `Unexpected server response (${response.status}).`
+        );
+      }
 
       if (!response.ok || !data.reply) {
         throw new Error(data.error || 'Unable to generate advisor response.');
